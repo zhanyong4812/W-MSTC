@@ -69,12 +69,12 @@ class MLP(nn.Module):
         out_features = out_features or in_features
         hidden_features = hidden_features or in_features
         self.fc1 = nn.Linear(in_features, hidden_features)
-        print(f"self.fc1 = nn.Linear(in_features, hidden_features) {in_features},{hidden_features}")
+        # print(f"self.fc1 = nn.Linear(in_features, hidden_features) {in_features},{hidden_features}")
         self.act = nn.GELU()
         self.fc2 = nn.Linear(hidden_features, out_features)
-        print(f"self.fc2 = nn.Linear(in_features, hidden_features) {in_features},{hidden_features}")
+        # print(f"self.fc2 = nn.Linear(in_features, hidden_features) {in_features},{hidden_features}")
         self.drop = nn.Dropout(drop)
-        print(f"self.drop = nn.Dropout(drop) {drop}")
+        # print(f"self.drop = nn.Dropout(drop) {drop}")
 
     def forward(self, x):
         x = self.fc1(x)

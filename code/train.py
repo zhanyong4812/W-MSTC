@@ -1,132 +1,192 @@
+import os
+import csv
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from data import load_data
-from data.preprocess import load_data_cache
-from utils import next_batch
-from models import PrototypicalNetwork
-from config import TASK_NUM, NUM_EPOCHS, DATA_DIR
+from torch.utils.data import Dataset, DataLoader
+import numpy as np
+import argparse
 import config
-from torchinfo import summary
-import time
-import os
-import csv
+from models import ClassificationNetwork
+from data.data_loader import load_data  # 返回 {'train':{'img','label'}, 'test':{'img','label'}}
 
-def evaluate_performance(model, x_support, y_support, x_query, y_query):
-    with torch.no_grad():
-        model.eval()  # 设置为评估模式
-        loss, accuracy = model(x_support, x_query, y_support, y_query)
-        model.train()  # 回到训练模式
-    return loss.item(), accuracy.item()
 
-def test_model_on_multiple_tasks(model, device, datasets, datasets_cache, num_tasks=TASK_NUM):
-    model.eval()  # 评估模式
-    total_test_acc = 0
-    total_test_loss = 0
-    for _ in range(num_tasks):
-        x_spt, y_spt, x_qry, y_qry = next_batch('test', datasets, datasets_cache)  # 获取测试数据
-        x_spt = torch.from_numpy(x_spt).to(device)
-        y_spt = torch.from_numpy(y_spt).long().to(device)
-        x_qry = torch.from_numpy(x_qry).to(device)
-        y_qry = torch.from_numpy(y_qry).long().to(device)
+class StandardModalDataset(Dataset):
+    """
+    把一个“帧堆栈”样本拆成两部分：
+      - 前 config.IMG_STACK 帧：星座图序列 → ConvLSTM
+      - 后 config.IQ_STACK 帧：IQ 图序列 → 扁平成 TCN 输入
+    """
+    def __init__(self, stacks: np.ndarray, labels: np.ndarray):
+        """
+        stacks: numpy array, 形状 [N, STACK, 1, 32, 32]
+        labels: numpy array, 形状 [N,]
+        """
+        self.stacks = stacks
+        self.labels = labels
 
-        for i in range(x_spt.size(0)):
-            test_loss, test_acc = evaluate_performance(model, x_spt[i], y_spt[i], x_qry[i], y_qry[i])
-            total_test_acc += test_acc
-            total_test_loss += test_loss
+        # 验证数据维度
+        assert stacks.ndim == 5 and stacks.shape[2] == 1 \
+               and stacks.shape[3] == 32 and stacks.shape[4] == 32, \
+               "stacks 维度必须是 [N, STACK, 1, 32, 32]"
+        assert stacks.shape[1] == config.IMG_STACK + config.IQ_STACK, \
+               f"每个样本的 STACK 必须等于 IMG_STACK+IQ_STACK = {config.IMG_STACK + config.IQ_STACK}"
 
-    model.train()  # 切换回训练模式
-    average_test_acc = total_test_acc / (num_tasks * x_spt.size(0))
-    average_test_loss = total_test_loss / (num_tasks * x_spt.size(0))
-    return average_test_loss, average_test_acc
+    def __len__(self):
+        return len(self.labels)
+
+    def __getitem__(self, idx):
+        # 1. 取出样本的整个帧堆栈： shape = [STACK, 1, 32, 32]
+        stack = self.stacks[idx]
+        label = int(self.labels[idx])
+
+        # 2. 切分前后两部分
+        # 2.1 星座图部分：前 config.IMG_STACK 帧 → [IMG_STACK, 1, 32, 32]
+        img_seq = stack[: config.IMG_STACK]            # numpy, shape = (IMG_STACK, 1, 32, 32)
+        # 转为 Tensor 并去掉 channel=1 维度 → [IMG_STACK, 32, 32]
+        img_seq = torch.from_numpy(img_seq).float().squeeze(1)
+
+        # 2.2 IQ 部分：后 config.IQ_STACK 帧 → [IQ_STACK, 1, 32, 32]
+        iq_seq = stack[config.IMG_STACK : ]            # numpy, shape = (IQ_STACK, 1, 32, 32)
+        # 扁平化到 (IQ_STACK, 1, 1024)
+        iq_seq = iq_seq.reshape(config.IQ_STACK, 1, 32 * 32)
+        iq_seq = torch.from_numpy(iq_seq).float()      # Tensor, shape = [IQ_STACK, 1, 1024]
+
+        # 3. 返回 (img_seq, iq_seq, label)
+        # 在 DataLoader 中，会自动把 B 维拼起来：
+        #   -> img_seq_batch: [B, IMG_STACK, 32, 32]
+        #   -> iq_seq_batch:  [B, IQ_STACK, 1, 1024]
+        return img_seq, iq_seq, label
 
 
 def train_model():
-    # 加载数据
-    datasets = load_data()
-    datasets_cache = {mode: load_data_cache(data) for mode, data in datasets.items()}
+    # —— 1. 加载并划分数据 —— 
+    data = load_data(test_size=0.2, random_state=42)
+    train_stacks = data['train']['img']    # numpy, shape (N_train, STACK, 1, 32, 32)
+    train_labels = data['train']['label']  # numpy, shape (N_train,)
+    test_stacks  = data['test']['img']     # numpy, shape (N_test, STACK, 1, 32, 32)
+    test_labels  = data['test']['label']   # numpy, shape (N_test,)
 
-    # 初始化模型
+    # —— 2. 构造 Dataset 与 DataLoader —— 
+    train_dataset = StandardModalDataset(train_stacks, train_labels)
+    test_dataset  = StandardModalDataset(test_stacks, test_labels)
+
+    train_loader = DataLoader(
+        train_dataset,
+        batch_size   = config.BATCH_SIZE,
+        shuffle      = True,
+        num_workers  = config.NUM_WORKERS,
+        pin_memory   = True
+    )
+    test_loader = DataLoader(
+        test_dataset,
+        batch_size   = config.BATCH_SIZE,
+        shuffle      = False,
+        num_workers  = config.NUM_WORKERS,
+        pin_memory   = True
+    )
+
+    # —— 3. 初始化模型、损失函数与优化器 —— 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    model = PrototypicalNetwork().to(device)
-
-    # 定义损失函数和优化器
+    model = ClassificationNetwork().to(device)
     criterion = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(model.parameters(), lr=0.001)
+    optimizer = optim.Adam(model.parameters(), lr=config.LEARNING_RATE)
 
-    # 打开CSV文件并写入头部
-    csv_filename = config.get_csv_filename(config.SNR)
-    print(f"CSV Filename: {csv_filename}")
-    with open(csv_filename, mode='w', newline='') as csv_file:
-        csv_writer = csv.writer(csv_file)
-        csv_writer.writerow(['Epoch', 'Test Loss', 'Test Accuracy', 'Inference Time'])
+    # —— 4. 准备 CSV 日志文件 —— 
+    csv_path = config.get_csv_filename(config.SNR)
+    # 如果文件不存在，创建并写入表头；如果已存在则覆盖
+    with open(csv_path, mode='w', newline='') as csv_file:
+        writer = csv.writer(csv_file)
+        writer.writerow([
+            "epoch",
+            "train_loss",
+            "train_acc",
+            "val_loss",
+            "val_acc"
+        ])
 
-        for epoch in range(NUM_EPOCHS):
-            model.train()
-            batch_data = next_batch('train', datasets, datasets_cache)
-            x_spts, y_spts, x_qrys, y_qrys = [torch.tensor(d).to(device) for d in batch_data]
+    best_acc = 0.0
+    os.makedirs(config.SAVE_DIR, exist_ok=True)
 
-            # 初始化累积损失和准确率
-            total_loss = 0.0
-            total_acc = 0.0
-            total_inference_time = 0.0
+    # —— 5. 训练 + 验证 循环 —— 
+    for epoch in range(1, config.NUM_EPOCHS + 1):
+        model.train()
+        running_loss = 0.0
+        running_correct = 0
+        total_samples = 0
 
-            start = time.time()
+        for img_seq_batch, iq_seq_batch, labels in train_loader:
+            # img_seq_batch: [B, IMG_STACK, 32, 32]
+            # iq_seq_batch:  [B, IQ_STACK, 1, 1024]
+            # labels:        [B]
+            img_seq_batch = img_seq_batch.to(device)
+            iq_seq_batch  = iq_seq_batch.to(device)
+            labels = labels.to(device)
 
-            # 遍历每个任务
-            for i in range(x_spts.size(0)):
-                current_x_spt = x_spts[i]
-                current_y_spt = y_spts[i]
-                current_x_qry = x_qrys[i]
-                current_y_qry = y_qrys[i]
-
-                # 记录前向传播开始时间
-                inference_start = time.time()
-
-                # 前向传播
-                # print(f"current_x_spt shape: {current_x_spt.shape}")
-                loss, acc = model(current_x_spt, current_x_qry, current_y_spt, current_y_qry)
-                
-                # 记录前向传播结束时间
-                inference_end = time.time()
-
-                # 计算推理时间
-                inference_time = inference_end - inference_start
-
-                total_loss += loss
-                total_acc += acc
-                total_inference_time += inference_time
-
-                # 可以在此输出或记录每个任务的推理时间
-                # print(f"Task {i+1}/{x_spts.size(0)} - Inference Time: {inference_time:.4f}s")
-
-            # 计算平均损失和准确率
-            average_loss = total_loss / x_spts.size(0)
-            average_acc = total_acc / x_spts.size(0)
-            # 计算平均推理时间
-            
-            average_inference_time = total_inference_time / x_spts.size(0)
-            # 输出平均推理时间
-            print(f"Average Inference Time: {average_inference_time:.4f}s")
-            
-            # 反向传播和优化
             optimizer.zero_grad()
-            average_loss.backward()
-
-            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=5.0)  # 最大梯度裁剪值为5.0
+            logits = model(img_seq_batch, iq_seq_batch)  # [B, NUM_CLASSES]
+            loss = criterion(logits, labels)
+            loss.backward()
             optimizer.step()
 
-            end = time.time()
+            running_loss += loss.item() * img_seq_batch.size(0)
+            preds = torch.argmax(logits, dim=1)
+            running_correct += torch.sum(preds == labels).item()
+            total_samples += img_seq_batch.size(0)
 
-            if epoch % 1 == 0:
-                print(f"Epoch {epoch+1}/{NUM_EPOCHS}: Avg Loss {average_loss.item():.4f}, Avg Accuracy {average_acc.item():.4f}, Time {end - start:.2f}s")
+        epoch_loss = running_loss / total_samples
+        epoch_acc  = running_correct / total_samples
 
-            if epoch % 10 == 0:
-                test_loss, test_accuracy = test_model_on_multiple_tasks(model, device, datasets, datasets_cache)
-                print(f"After Epoch {epoch+1}: Test Loss: {test_loss:.4f}, Test Accuracy: {test_accuracy:.4f}")
-                csv_writer.writerow([epoch+1, test_loss, test_accuracy, inference_time])
+        # —— 验证阶段 —— 
+        model.eval()
+        val_loss = 0.0
+        val_correct = 0
+        val_samples = 0
+        with torch.no_grad():
+            for img_seq_batch, iq_seq_batch, labels in test_loader:
+                img_seq_batch = img_seq_batch.to(device)
+                iq_seq_batch  = iq_seq_batch.to(device)
+                labels = labels.to(device)
+                logits = model(img_seq_batch, iq_seq_batch)
+                loss = criterion(logits, labels)
 
-    print("Training Completed!")
+                val_loss += loss.item() * img_seq_batch.size(0)
+                preds = torch.argmax(logits, dim=1)
+                val_correct += torch.sum(preds == labels).item()
+                val_samples += img_seq_batch.size(0)
+
+        val_loss_epoch = val_loss / val_samples
+        val_acc_epoch  = val_correct / val_samples
+
+        # 打印当前 epoch 信息
+        print(
+            f"[Epoch {epoch}/{config.NUM_EPOCHS}] "
+            f"Train Loss: {epoch_loss:.4f}, Train Acc: {epoch_acc:.4f}  |  "
+            f"Val   Loss: {val_loss_epoch:.4f}, Val   Acc: {val_acc_epoch:.4f}"
+        )
+
+        # —— 6. 将本 epoch 结果写入 CSV —— 
+        with open(csv_path, mode='a', newline='') as csv_file:
+            writer = csv.writer(csv_file)
+            writer.writerow([
+                epoch,
+                f"{epoch_loss:.4f}",
+                f"{epoch_acc:.4f}",
+                f"{val_loss_epoch:.4f}",
+                f"{val_acc_epoch:.4f}"
+            ])
+
+        # 保存最优模型
+        if val_acc_epoch > best_acc:
+            best_acc = val_acc_epoch
+            # torch.save(
+            #     model.state_dict(),
+            #     os.path.join(config.SAVE_DIR, "best_model.pth")
+            # )
+
+    print(f"Training finished! Best Val Acc: {best_acc:.4f}")
+    print(f"Training log saved to: {csv_path}")
+
 
 if __name__ == "__main__":
     train_model()

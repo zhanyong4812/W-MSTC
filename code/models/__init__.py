@@ -1,2 +1,1 @@
-from .prototypical_network_dim32 import PrototypicalNetwork
-from .prototypical_network_dim32 import summary_mode
+from .classification_network import ClassificationNetwork
