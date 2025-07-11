@@ -1,5 +1,5 @@
-# 忽略所有 __pycache__ 文件夹及其内容
+# Ignore all __pycache__ directories and their contents
 **/__pycache__/
 
-# 忽略所有 .ipynb_checkpoints 文件夹及其内容
+# Ignore Jupyter Notebook checkpoint directories and their contents
 **/.ipynb_checkpoints/
