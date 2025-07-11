@@ -11,16 +11,17 @@ from stack_utils import (
 )
 
 def main():
-    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+    logging.basicConfig(level=logging.INFO,
+                        format='%(asctime)s - %(levelname)s - %(message)s')
 
-    # 1) 读取 YAML 配置
+    # 1) Read YAML configuration
     cfg = read_config("config.yaml")
 
-    hdf5_path   = cfg.get('hdf5_path', None)
-    output_dir  = cfg.get('output_dir', './output')
+    hdf5_path  = cfg.get('hdf5_path', None)
+    output_dir = cfg.get('output_dir', './output')
     os.makedirs(output_dir, exist_ok=True)
 
-    # 获取调制方式和SNR列表
+    # Determine modulation types and SNR list
     if cfg.get('modulations') == "all":
         target_modulations = MODULATION_LIST
     else:
@@ -31,34 +32,36 @@ def main():
     else:
         target_snrs = cfg.get('snrs', [])
 
-    # 样本数
+    # Sample counts
     samples_per_condition = cfg.get('samples', 1000)
-    single_snr = cfg.get('snr', 6)
-    single_sample = cfg.get('samples', 1000)
+    single_snr           = cfg.get('snr', 6)
+    single_sample        = cfg.get('samples', 1000)
 
-    # 获取配置文件中的 num_timesteps 和 grid_size
-    num_timesteps_values = cfg.get('num_timesteps_values', [4])  # 默认值 [4] 如果未指定
-    grid_size_values = cfg.get('grid_size_values', [64])  # 默认值 [64] 如果未指定
+    # Read grid sizes and time steps from config
+    num_timesteps_values = cfg.get('num_timesteps_values', [4])
+    grid_size_values     = cfg.get('grid_size_values', [64])
 
-    # 布尔开关
-    stack_iq_flag = cfg.get('stack_iq_data', False)
-    generate_const_flag = cfg.get('generate_constellation', False)
-    stack_const_iq_flag = cfg.get('stack_constellation_iq', False)
+    # Boolean switches for pipeline stages
+    stack_iq_flag        = cfg.get('stack_iq_data', False)
+    generate_const_flag  = cfg.get('generate_constellation', False)
+    stack_const_iq_flag  = cfg.get('stack_constellation_iq', False)
 
-    # 遍历 num_timesteps 和 grid_size 的所有组合
+    # Iterate over all combinations of time steps and grid sizes
     for num_timesteps in num_timesteps_values:
         for grid_size in grid_size_values:
             logging.info(f"[CONFIG] modulations={target_modulations}")
             logging.info(f"[CONFIG] snrs={target_snrs}")
             logging.info(f"[CONFIG] samples_for_extraction={samples_per_condition}")
             logging.info(f"[CONFIG] single_snr_for_BCD={single_snr}, single_samples_for_BCD={single_sample}")
-            logging.info(f"[CONFIG] stack_iq_data={stack_iq_flag}, generate_constellation={generate_const_flag}, stack_constellation_iq={stack_const_iq_flag}")
+            logging.info(f"[CONFIG] stack_iq_data={stack_iq_flag}, "
+                         f"generate_constellation={generate_const_flag}, "
+                         f"stack_constellation_iq={stack_const_iq_flag}")
 
             # ------------------------------------
-            # A) 如果有 HDF5 文件需要提取IQ数据
+            # A) Extract IQ data from HDF5 if configured
             # ------------------------------------
             if hdf5_path and os.path.exists(hdf5_path):
-                logging.info("开始从HDF5提取IQ数据...")
+                logging.info("Starting IQ extraction from HDF5...")
                 extract_iq_data_from_hdf5(
                     hdf5_path=hdf5_path,
                     output_dir=output_dir,
@@ -67,60 +70,77 @@ def main():
                     samples_per_condition=samples_per_condition
                 )
             else:
-                logging.warning("未配置 hdf5_path 或文件不存在，跳过提取IQ数据")
+                logging.warning("No valid hdf5_path configured or file not found; skipping IQ extraction")
 
-            # ================
-            #  B) 堆叠 IQ 数据
-            # ================
+            # ====================
+            # B) Stack IQ data
+            # ====================
             if stack_iq_flag:
-                # 对每个 snr 进行堆叠
                 for s in target_snrs:
                     snr_folder = os.path.join(output_dir, f"SNR_{s}")
                     if os.path.exists(snr_folder):
                         combined_data, snr_val = stack_iq_data_from_folder(snr_folder)
                         out_file = os.path.join(
                             output_dir,
-                            f"IQ_SNR_{snr_val}_k{single_sample}_grid_size{grid_size}_num_timesteps{num_timesteps}.npy"
+                            f"IQ_SNR_{snr_val}_k{single_sample}_"
+                            f"grid_size{grid_size}_num_timesteps{num_timesteps}.npy"
                         )
                         np.save(out_file, combined_data)
-                        logging.info(f"[B] 完成对 SNR={snr_val} 的堆叠: shape={combined_data.shape}, 输出: {out_file}")
+                        logging.info(f"[B] Completed stacking for SNR={snr_val}: "
+                                     f"shape={combined_data.shape}, output={out_file}")
                     else:
-                        logging.warning(f"[B] 文件夹 {snr_folder} 不存在，跳过堆叠")
+                        logging.warning(f"[B] Folder {snr_folder} does not exist; skipping IQ stacking")
 
-            # =====================
-            #  C) 生成星座图 (IQ→星座)
-            # =====================
+            # ====================
+            # C) Generate constellation diagrams
+            # ====================
             if generate_const_flag:
                 for s in target_snrs:
-                    iq_file = os.path.join(output_dir,
-                                           f"IQ_SNR_{s}_k{single_sample}_grid_size{grid_size}_num_timesteps{num_timesteps}.npy")
+                    iq_file = os.path.join(
+                        output_dir,
+                        f"IQ_SNR_{s}_k{single_sample}_"
+                        f"grid_size{grid_size}_num_timesteps{num_timesteps}.npy"
+                    )
                     if os.path.exists(iq_file):
                         iq_data = np.load(iq_file)
                         constellation_out = os.path.join(
                             output_dir,
-                            f"Constellation_SNR_{s}_k{single_sample}_grid_size{grid_size}_num_timesteps{num_timesteps}.npy"
+                            f"Constellation_SNR_{s}_k{single_sample}_"
+                            f"grid_size{grid_size}_num_timesteps{num_timesteps}.npy"
                         )
-                        generate_constellation_data(iq_data, constellation_out, grid_size, num_timesteps)
-                        logging.info(f"[C] 已生成星座图: {constellation_out}")
+                        generate_constellation_data(iq_data, constellation_out,
+                                                    grid_size, num_timesteps)
+                        logging.info(f"[C] Constellation generated: {constellation_out}")
                     else:
-                        logging.warning(f"[C] 找不到 {iq_file}, 无法生成星座图")
+                        logging.warning(f"[C] File not found {iq_file}; cannot generate constellation")
 
             # ==========================================
-            #  D) 堆叠星座图 + IQ (针对每个 SNR 的文件)
+            # D) Stack constellation + IQ for each SNR
             # ==========================================
             if stack_const_iq_flag:
                 for s in target_snrs:
-                    const_npy = os.path.join(output_dir,
-                                             f"Constellation_SNR_{s}_k{single_sample}_grid_size{grid_size}_num_timesteps{num_timesteps}.npy")
-                    iq_npy = os.path.join(output_dir,
-                                          f"IQ_SNR_{s}_k{single_sample}_grid_size{grid_size}_num_timesteps{num_timesteps}.npy")
-                    combined_out = os.path.join(output_dir,
-                                                f"Mutil_SNR_{s}_k{single_sample}_grid_size{grid_size}_num_timesteps{num_timesteps}.npy")
+                    const_npy = os.path.join(
+                        output_dir,
+                        f"Constellation_SNR_{s}_k{single_sample}_"
+                        f"grid_size{grid_size}_num_timesteps{num_timesteps}.npy"
+                    )
+                    iq_npy = os.path.join(
+                        output_dir,
+                        f"IQ_SNR_{s}_k{single_sample}_"
+                        f"grid_size{grid_size}_num_timesteps{num_timesteps}.npy"
+                    )
+                    combined_out = os.path.join(
+                        output_dir,
+                        f"Mutil_SNR_{s}_k{single_sample}_"
+                        f"grid_size{grid_size}_num_timesteps{num_timesteps}.npy"
+                    )
                     if os.path.exists(const_npy) and os.path.exists(iq_npy):
-                        stack_constellation_and_iq(const_npy, iq_npy, combined_out, grid_size, num_timesteps)
-                        logging.info(f"[D] 已堆叠星座图 + IQ, 输出: {combined_out}")
+                        stack_constellation_and_iq(const_npy, iq_npy,
+                                                  combined_out,
+                                                  grid_size, num_timesteps)
+                        logging.info(f"[D] Constellation + IQ stacked, output: {combined_out}")
                     else:
-                        logging.warning(f"[D] {const_npy} 或 {iq_npy} 不存在，无法拼接.")
+                        logging.warning(f"[D] Missing {const_npy} or {iq_npy}; cannot stack")
 
 if __name__ == "__main__":
     main()

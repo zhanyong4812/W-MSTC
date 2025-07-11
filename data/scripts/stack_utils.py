@@ -16,44 +16,48 @@ MODULATION_ORDER = [
 
 def stack_iq_data_from_folder(folder_path):
     """
-    在给定的文件夹中，搜集形如 'X_SNR_xx_mod_xxx.npy' 的文件，
-    按照 MODULATION_ORDER 顺序堆叠为 (24, N, 10000024, 2) 并返回。
+    Collect files named 'X_SNR_<snr>_mod_<modulation>.npy' in the given folder,
+    and stack them in the order of MODULATION_ORDER. Returns an array of shape
+    (24, N, 1024, 2) and the SNR value.
     """
     file_list = os.listdir(folder_path)
     snr_pattern = re.compile(r"X_SNR_([+-]?\d+)_mod_(.*)\.npy")
-
 
     data_list = []
     snr_value = None
 
     for mod in tqdm(MODULATION_ORDER, desc="Stacking IQ data"):
+        # Find the first matching file for this modulation
         matching_files = [f for f in file_list if f"mod_{mod}" in f and snr_pattern.search(f)]
         if matching_files:
             file_path = os.path.join(folder_path, matching_files[0])
-            # 提取 snr
+            # Extract the SNR from the filename
             match = snr_pattern.search(file_path)
             if match:
                 snr_value = match.group(1)
-            data = np.load(file_path)  # (N, 10000024, 2)
-            # 1) 转置: (N, 10000024, 2) -> (N, 2, 10000024)
+            data = np.load(file_path)      # expected shape: (N, 1024, 2)
+            # Transpose to (N, 2, 1024)
             data = data.transpose(0, 2, 1)
-            data = np.expand_dims(data, axis=1)  # (N, 1, 2, 10000024)
+            # Add a singleton dimension for consistency: (N, 1, 2, 1024)
+            data = np.expand_dims(data, axis=1)
             data_list.append(data)
         else:
-            logging.warning(f"在 {folder_path} 中未找到 {mod} 对应文件.")
+            logging.warning(f"No file for modulation {mod} found in {folder_path}.")
 
     if not data_list:
-        raise ValueError(f"未在 {folder_path} 中找到任何匹配文件！")
+        raise ValueError(f"No matching IQ files found in {folder_path}!")
 
-    combined_data = np.stack(data_list, axis=0)  # (24, N, 10000024, 2)
-    logging.info(f"堆叠完成: combined_data.shape={combined_data.shape}, SNR={snr_value}")
+    # Stack across the modulation axis: (24, N, 1, 2, 1024)
+    combined_data = np.stack(data_list, axis=0)
+    logging.info(f"Stacking complete: combined_data.shape={combined_data.shape}, SNR={snr_value}")
     return combined_data, snr_value
 
 def get_reshaped_data(m1, m2, grid_size, num_timesteps):
     """
-    根据不同的 grid_size 和 num_timesteps 调整数据形状
-    根据你提供的组合要求来调整每个分支。
+    Reshape the constellation data (m1) and IQ data (m2) according to
+    the specified grid_size and num_timesteps. Returns (m1_reshaped, m2_reshaped).
     """
+    # NOTE: Update these branches to match your actual data dimensions.
     if grid_size == 16:
         if num_timesteps == 1:
             return m1.reshape(24, 1000, 1, 1, 16, 16), m2.reshape(24, 1000, 8, 1, 16, 16)
@@ -104,20 +108,20 @@ def get_reshaped_data(m1, m2, grid_size, num_timesteps):
     else:
         raise ValueError(f"Unsupported grid_size: {grid_size}")
 
-
 def stack_constellation_and_iq(constellation_file, iq_file, output_file, grid_size, num_timesteps):
     """
-    将星座图和 IQ 数据拼接到一起并保存，调整形状以适应不同的 grid_size 和 num_timesteps。
+    Load constellation (.npy) and IQ (.npy) files, reshape them using get_reshaped_data,
+    concatenate along the channel axis, and save to output_file.
     """
     m1 = np.load(constellation_file)
     m2 = np.load(iq_file)
-    logging.info(f"加载星座图: {m1.shape}, IQ图: {m2.shape}")
+    logging.info(f"Loaded constellation: {m1.shape}, IQ: {m2.shape}")
 
-    # 调整 m1 和 m2 的形状
-    m1_reshaped, m2_reshaped = get_reshaped_data(m1,m2, grid_size, num_timesteps)
+    # Reshape both arrays
+    m1_reshaped, m2_reshaped = get_reshaped_data(m1, m2, grid_size, num_timesteps)
 
-    # 在轴2（通道轴）上拼接
+    # Concatenate along axis 2 (channel dimension)
     combined = np.concatenate([m1_reshaped, m2_reshaped], axis=2)
 
     np.save(output_file, combined)
-    logging.info(f"拼接完成: {combined.shape}, 保存至 {output_file}")
+    logging.info(f"Stacking complete: {combined.shape}, saved to {output_file}")
