@@ -1,22 +1,24 @@
 # config.yaml
 
-hdf5_path: "../../data/2018.01/GOLD_XYZ_OSC.0001_1024.hdf5"
-output_dir: "../../RadioML/"
+hdf5_path: "/data/dataset/MLRadio/RML2018.01a/2018.01/GOLD_XYZ_OSC.0001_1024.hdf5"
+output_dir: "/data/dataset/MLRadio/RadioML2018/"
 
-# 如果需要从HDF5中提取IQ时，用的调制列表 & SNR列表
-modulations: all     # 可写 "all" 或 ["QPSK","BPSK"]
-snrs: [6]            # 可写 "all" 或 [6, 10, 12]
-samples: 1000        # 提取或堆叠时使用的样本数量
+# If you need to extract IQ data from the HDF5 file, specify modulation list & SNR list:
+modulations: all       # can be "all" or ["QPSK","BPSK"]
+snrs: [6]              # can be "all" or [6, 10, 12]
+samples: 1000          # number of samples to extract or stack
 
-# 用于 B/C/D 步骤时，选择一个单独的 SNR
+# For stages B/C/D, choose a single SNR (can be scalar or list of one element)
 snr: [6]
 
-# 布尔开关，是否进行以下操作
+# Boolean flags, enable or disable each stage:
 stack_iq_data: true
 generate_constellation: true
 stack_constellation_iq: true
 
-#grid_size: 64 # 星座图尺寸
-#num_timesteps: 16 # 时间步 1024//4 = 256 per timestep
-num_timesteps_values : [4, 8, 16]
-grid_size_values : [16, 32, 64]
+# Constellation grid settings:
+# num_timesteps_values: [4, 8, 16]
+# grid_size_values:     [16, 32, 64]
+
+num_timesteps_values: [8]
+grid_size_values:     [32]
