@@ -1,4 +1,4 @@
-# # data/preprocess.py
+# data/preprocess.py
 import numpy as np
 import config
 
@@ -7,19 +7,8 @@ def load_data_cache(dataset):
     Collects several batches data for N-shot learning.
     :param dataset: [cls_num, samples, channels, height, width]
     :return: A list with [support_set_x, support_set_y, target_x, target_y]
-
-    修改内容：
-    - 数据形状从 (24, 1000, 24, 1, 16, 16) 改为 (24, 1000, 18, 1, 32, 32)，其中 18=16+2 表示星座图和 IQ 图像
-    - 前 16,1,32,32 代表星座图像，后 2,1,32,32 代表 IQ 图像
-    - 还原后的数据格式：(16,1,32,32)->(4,64,64)，(2,1,32,32)->(2,1,1024)
-    - (24, 1000, 66, 1, 32, 32) -> (24, 1000, 64, 1, 32, 32) + (24, 1000, 2, 1, 32, 32)
-    - (24, 1000, 64, 1, 32, 32) -> (24, 1000, 16, 64, 64)
-    - (24, 1000, 2, 1, 32, 32) -> (24, 1000, 2, 1, 1024)
     """
-
-    # 使用 config 中的值计算相关参数
     setsz = config.K_SPT * config.N_WAY
-    # print(f"K_SPT in load data cache {config.K_SPT}")
     querysz = config.K_QUERY * config.N_WAY
     data_cache = []
 

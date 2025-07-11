@@ -6,21 +6,21 @@ class SpatialTemporalFeatureExtractor(nn.Module):
     def __init__(self,
                  in_channels=1,
                  conv_channels=32,
-                 lstm_hidden_size=128,  # 设置隐藏层维度为 128
+                 lstm_hidden_size=128,
                  lstm_layers=2,
                  dropout_rate=0.3):
         super(SpatialTemporalFeatureExtractor, self).__init__()
 
-        # 卷积部分：两层卷积块
+        # Convolutional part: two convolutional blocks
         self.conv = nn.Sequential(
-            # 第1层卷积块
+            # 1st convolutional block
             nn.Conv2d(in_channels, conv_channels, kernel_size=3, padding=1),
             nn.BatchNorm2d(conv_channels),
             nn.ReLU(),
             nn.MaxPool2d(kernel_size=2),
             nn.Dropout2d(p=dropout_rate),
 
-            # 第2层卷积块
+            # 2nd convolutional block
             nn.Conv2d(conv_channels, conv_channels * 2, kernel_size=3, padding=1),
             nn.BatchNorm2d(conv_channels * 2),
             nn.ReLU(),
@@ -28,8 +28,8 @@ class SpatialTemporalFeatureExtractor(nn.Module):
             nn.Dropout2d(p=dropout_rate)
         )
 
-        # 单向 LSTM 提取卷积后的时空特征
-        # 输入尺寸为卷积输出的通道数（conv_channels * 2）
+        # Unidirectional LSTM to extract spatio-temporal features after convolution
+        # Input size is number of channels after conv: conv_channels * 2
         self.lstm = nn.LSTM(input_size=conv_channels * 2,
                             hidden_size=lstm_hidden_size,
                             num_layers=lstm_layers,
@@ -37,32 +37,32 @@ class SpatialTemporalFeatureExtractor(nn.Module):
                             dropout=dropout_rate if lstm_layers > 1 else 0)
 
     def forward(self, x):
-        # 输入 x 的形状: [batch_size, time_steps, height, width]
-        # 先在 channel 维度上增加一个维度，变成 [batch_size, time_steps, 1, height, width]
+        # Input x shape: [batch_size, time_steps, height, width]
+        # Add channel dimension: [batch_size, time_steps, 1, height, width]
         x = x.unsqueeze(2)
         batch_size, time_steps, channels, height, width = x.size()
 
-        # 合并 batch 和 time_steps 以适应卷积网络：[B*time_steps, channels, height, width]
+        # Merge batch and time_steps to apply convolution: [B*time_steps, channels, height, width]
         x = x.contiguous().view(batch_size * time_steps, channels, height, width)
-        x = self.conv(x)  # 输出形状: [B*time_steps, conv_channels*2, H', W']
+        x = self.conv(x)  # Output shape: [B*time_steps, conv_channels*2, H', W']
 
-        # 保持空间结构，转换形状为 [B*time_steps, H', W', conv_channels*2]
+        # Preserve spatial structure: [B*time_steps, H', W', conv_channels*2]
         x = x.permute(0, 2, 3, 1)
         N, H_prime, W_prime, C_prime = x.shape
 
-        # 将每个样本的空间位置展平成序列：[B*time_steps, H'*W', C_prime]
+        # Flatten spatial positions into a sequence: [B*time_steps, H'*W', C_prime]
         x = x.view(N, H_prime * W_prime, C_prime)
 
-        # 利用 LSTM 处理每个样本的空间位置序列
-        # 输入形状: [B*time_steps, sequence_length, input_size]
-        lstm_out, _ = self.lstm(x)  # 输出形状: [B*time_steps, sequence_length, lstm_hidden_size]
+        # LSTM over the spatial sequence for each sample
+        # Input shape: [B*time_steps, sequence_length, input_size]
+        lstm_out, _ = self.lstm(x)  # Output shape: [B*time_steps, sequence_length, lstm_hidden_size]
 
-        # 将时间步信息还原：reshape 为 [batch_size, time_steps, spatial_length, hidden_size]
+        # Restore time_steps dimension: [batch_size, time_steps, spatial_length, hidden_size]
         spatial_len = lstm_out.shape[1]
         lstm_out = lstm_out.view(batch_size, time_steps, spatial_len, -1)
 
-        # 对时间步维度进行平均聚合，得到每个样本的空间特征
-        aggregated = lstm_out.mean(dim=1)  # 结果形状: [batch_size, spatial_length, hidden_size]
+        # Average over time_steps dimension to get per-sample spatial features
+        aggregated = lstm_out.mean(dim=1)  # Result shape: [batch_size, spatial_length, hidden_size]
         return aggregated
 
 class ConvLSTM(nn.Module):
@@ -72,23 +72,22 @@ class ConvLSTM(nn.Module):
             lstm_hidden_size=lstm_hidden_size,
             dropout_rate=dropout_rate
         )
-        # 在特征提取后增加一个 BiLSTM 层，处理“空间序列”（聚合后的每个位置）
-        # 此处输入维度为 128，双向后输出维度为 2 * 128 = 256
+        # Add a BiLSTM layer after feature extraction to process the 'spatial sequence'
+        # Input dimension is lstm_hidden_size; bi-directional output is 2 * lstm_hidden_size
         self.bi_lstm = nn.LSTM(input_size=lstm_hidden_size,
                                hidden_size=lstm_hidden_size,
                                num_layers=2,
                                batch_first=True,
                                bidirectional=True)
-        # 全连接层将 BiLSTM 输出（双向，维度为 256）映射回 128 维
+        # Fully connected layer to map BiLSTM output (2*lstm_hidden_size) back to lstm_hidden_size
         self.fc = nn.Linear(2 * lstm_hidden_size, lstm_hidden_size)
 
     def forward(self, x):
-        # x 的输入形状: [batch_size, time_steps, height, width]
+        # Input x shape: [batch_size, time_steps, height, width]
         features = self.feature_extractor(x)
-        # features 的形状: [batch_size, spatial_length, lstm_hidden_size]
-        # 使用 BiLSTM 对聚合后的空间序列进行进一步建模
-        bi_out, _ = self.bi_lstm(features)  # 输出形状: [batch_size, spatial_length, 2*lstm_hidden_size]
-        
+        # features shape: [batch_size, spatial_length, lstm_hidden_size]
+        # Apply BiLSTM over the aggregated spatial sequence
+        bi_out, _ = self.bi_lstm(features)  # Output shape: [batch_size, spatial_length, 2*lstm_hidden_size]
         return bi_out
 
 if __name__ == '__main__':
@@ -97,6 +96,6 @@ if __name__ == '__main__':
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model.to(device)
 
-    # 构造一个 dummy 输入：[batch_size, time_steps, height, width]
+    # Create a dummy input: [batch_size, time_steps, height, width]
     dummy_input = torch.randn(2, 4, 64, 64).to(device)
     summary(model, input_data=dummy_input, depth=10)
