@@ -7,16 +7,18 @@ indexes = {"train": 0, "test": 0}
 
 def next_batch(mode, datasets, datasets_cache):
     """
-    获取下一个批次的数据
-    :param mode: 'train' 或 'test'
-    :param datasets: 数据集字典
-    :param datasets_cache: 缓存的数据字典
-    :return: 下一个批次的数据
+    Get the next batch of data.
+    :param mode: 'train' or 'test'
+    :param datasets: dictionary of dataset identifiers
+    :param datasets_cache: dictionary of cached data batches
+    :return: the next batch of data
     """
+    # If we've exhausted the cache for this mode, reset the index and reload
     if indexes[mode] >= len(datasets_cache[mode]):
         indexes[mode] = 0
         datasets_cache[mode] = load_data_cache(datasets[mode])
 
-    next_batch = datasets_cache[mode][indexes[mode]]
+    # Retrieve and return the next batch
+    batch = datasets_cache[mode][indexes[mode]]
     indexes[mode] += 1
-    return next_batch
+    return batch

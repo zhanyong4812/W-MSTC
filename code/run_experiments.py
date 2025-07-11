@@ -1,18 +1,19 @@
 import subprocess
 
-# 定义需要处理的SNR值
+# Define the SNR values to process
 snr_values = [30]
 # snr_values = list(range(2, 31, 2))
 # snr_values = list(range(-20, 32, 2))
-# 定义需要测试的 K_SPT 和 N_WAY 范围
+
+# Define the ranges for K_SPT and N_WAY to test
 k_values = [3, 5, 7, 9]
 # k_values = [5, 7, 9]
-# n_values = [2,3,5,7]
-# n_values = [2,3,7]
+# n_values = [2, 3, 5, 7]
+# n_values = [2, 3, 7]
 
-# 对于每个SNR值，分别测试不同的 K_SPT 和 N_WAY 组合
+# For each SNR value, test different combinations of K_SPT and N_WAY
 for snr in snr_values:
-    # 针对K_SPT进行测试
+    # Test for each K_SPT
     for k in k_values:
         print("=" * 40)
         print(f"Running main.py with SNR = {snr}, K_SPT = {k}")
@@ -22,7 +23,7 @@ for snr in snr_values:
             print(f"Error occurred for SNR = {snr}, K_SPT = {k}. Exiting.")
             break
 
-    # 针对N_WAY进行测试
+    # Test for each N_WAY
     # for n in n_values:
     #     print("=" * 40)
     #     print(f"Running main.py with SNR = {snr}, N_WAY = {n}")
