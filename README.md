@@ -4,8 +4,8 @@
 
 ### Requirements
 
-- **Python** ≥ 3.8  
-- **CUDA Toolkit** 11.3  
+- **Python** ≥ 3.9  
+- **CUDA Toolkit** 11.5  
 - **PyTorch** 1.11.0  
 - Other dependencies listed in `requirements.txt`
 
@@ -23,7 +23,7 @@
 1. (Optional) Create & activate a virtual environment:
 
    ```bash
-   python3.8 -m venv venv
+   python3.9 -m venv venv
    source venv/bin/activate
    ```
 
@@ -38,31 +38,35 @@
 ### Project Structure
 
 ```less
-code
-├── config.py / config.yaml
-├── main.py / train.py / train_cls.py
-├── models/
-│   ├── classification_network.py
-│   ├── prototypical_network.py
-│   ├── feature_extraction/
-│   │   ├── Conv_LSTM.py
-│   │   └── MultiScale_TCN.py
-│   └── feature_fusion/
-│       ├── window_attention.py
-│       ├── multi_window_attention.py
-│       ├── cross_attention.py
-│       └── windowed_cross_attention.py
-├── data/
-│   ├── data_loader.py
-│   ├── cls_data_loader.py
-│   └── preprocess.py
-├── utils/
-│   ├── config_utils.py
-│   ├── display.py
-│   └── helpers.py
-├── results/
-│   └── SNR_x/ 
-└── requirements.txt
+W-MSTC
+├── code/
+│   ├── config.py / config.yaml
+│   ├── main.py / train.py / train_cls.py
+│   ├── models/
+│   │   ├── classification_network.py
+│   │   ├── prototypical_network.py
+│   │   ├── feature_extraction/
+│   │   │   ├── Conv_LSTM.py
+│   │   │   └── MultiScale_TCN.py
+│   │   └── feature_fusion/
+│   │       ├── window_attention.py
+│   │       ├── multi_window_attention.py
+│   │       ├── cross_attention.py
+│   │       └── windowed_cross_attention.py
+│   ├── data/
+│   │   ├── data_loader.py
+│   │   ├── cls_data_loader.py
+│   │   └── preprocess.py
+│   ├── utils/
+│   │   ├── config_utils.py
+│   │   ├── display.py
+│   │   └── helpers.py
+│   └── results/
+│       └── SNR_x/ 
+├── requirements.txt
+├── LICENSE
+├── .gitignore
+└── README.md
 ```
 
 ------

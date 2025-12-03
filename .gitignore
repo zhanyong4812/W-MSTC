@@ -1,0 +1,5 @@
+# Ignore all __pycache__ directories and their contents
+**/__pycache__/
+# Ignore Jupyter Notebook checkpoint directories and their contents
+**/.ipynb_checkpoints/
+.idea/

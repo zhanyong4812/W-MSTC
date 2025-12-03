@@ -1,5 +1,5 @@
-numpy
-matplotlib
-h5py
-pyyaml
-tqdm
+numpy==1.26.4
+matplotlib==3.9.4
+h5py==3.14.0
+pyyaml==6.0.2
+tqdm==4.67.1
