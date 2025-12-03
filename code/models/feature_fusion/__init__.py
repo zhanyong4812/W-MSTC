@@ -1,1 +1,1 @@
-from .multimodal_model import MultiModalModel
+from .windowed_cross_attention import WindowedCrossAttention

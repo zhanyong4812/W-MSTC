@@ -70,9 +70,8 @@ class TCN(nn.Module):
         out = self.block3(out)
         out = self.block4(out)
         out = self.global_pool(out)
-        out = out.squeeze(2)
-        # print(f"ClassificationModelMultiScale before AdaptiveAvgPool2d out shape:{out.shape}")
-        # ClassificationModelMultiScale before AdaptiveAvgPool2d out shape:torch.Size([2, 128, 1, 100])
+        out = out.squeeze(2)               # [B, C, Seq]
+        out = out.transpose(1, 2).contiguous()  # -> [B, Seq, C] consistent with fusion module expectations
         return out
 
 if __name__ == '__main__':

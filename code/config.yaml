@@ -1,0 +1,86 @@
+# W-MSTC Configuration File
+
+# Data paths
+data:
+  # 与 data 生成脚本中的 output_dir 保持一致
+  root_dir: '/data/dataset/MLRadio/RadioML2018/'
+  # 训练时按 SNR / 样本数 / 网格尺寸 / 时间步自动匹配数据文件
+  # 实际文件名示例：Mutil_SNR_6_k1000_size32_step8.npy
+  train_data_template: 'Mutil_SNR_{snr}_k{samples}_size{size}_step{step}.npy'
+  samples: 1000     # 与 data/config/config.yaml 中 samples 保持一致
+  size: 32          # 对应 grid_size
+  step: 8           # 对应 num_timesteps
+  train_split: 12
+  test_split: [12, 16, 18]
+
+# Task parameters (Few-shot learning)
+task:
+  n_way: 5              # Number of classes per episode
+  k_spt: 5              # Number of support examples per class
+  k_query: 5            # Number of query examples per class
+  task_num: 4           # Number of parallel tasks (meta-batch size)
+  batch_size: 4          # Batch size (should equal task_num)
+
+# Image dimensions
+image:
+  resize_width: 32
+  resize_length: 32
+
+# Input channels
+channels:
+  stack_size: 10        # Total channels
+  stack_img_size: 8     # Number of constellation image channels
+
+# Cache settings
+cache:
+  cache_batches: 10     # Number of batches to keep in memory
+
+# Model parameters
+model:
+  img_dim: 256          # Dimension of image feature embedding
+  iqap_dim: 256        # Dimension of IQ amplitude-phase embedding
+  num_heads: 4         # Number of attention heads
+  embed_dim: 256       # Embedding dimension for fusion
+  input_dim: 256
+  output_dim: 256
+  seq_length: 256      # Sequence length for transformer input
+  window_sizes: [32, 64, 128]  # Attention window sizes per stage
+
+# Swin-Transformer configuration
+swin_transformer:
+  num_layers: 3         # Number of transformer layers (should match window_sizes length)
+  mlp_ratio: 4.0       # MLP expansion ratio
+  drop: 0.2            # Dropout rate
+
+# Fusion branches toggle
+branches:
+  use_wa: true     # Windowed Attention (WA)
+  use_mwa: true    # Multi-Windows-Attention (MWA)
+  use_ca: true     # Cross-Attention (CA)
+
+# Transformer blocks
+transformer:
+  block_layers: 1      # Number of transformer blocks per branch
+
+# Training hyperparameters
+training:
+  learning_rate: 0.001
+  num_epochs: 301
+
+# Supervised classification (non-few-shot) settings
+classification:
+  num_classes: 11      # 总类别数（原 dev-code.NUM_CLASSES）
+  use_classes: 5       # 仅使用前 N 个类别；如用全部可设为 null
+  batch_size: 32
+  num_workers: 4
+  save_dir: './cls_checkpoints/'
+
+# Results directory
+results:
+  data_dir: './results/'
+
+# Runtime parameters (will be set at runtime)
+runtime:
+  snr: null            # Signal-to-noise ratio (set at runtime)
+  train_data: null    # Actual dataset path (set at runtime)
+

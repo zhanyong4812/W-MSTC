@@ -56,55 +56,74 @@ def get_reshaped_data(m1, m2, grid_size, num_timesteps):
     """
     Reshape the constellation data (m1) and IQ data (m2) according to
     the specified grid_size and num_timesteps. Returns (m1_reshaped, m2_reshaped).
+    
+    Args:
+        m1: Constellation data with shape (c, s, num_timesteps, 1, grid_size, grid_size)
+        m2: IQ data with shape (c, s, 1, 2, length)
+        grid_size: Target grid size for reshaping
+        num_timesteps: Number of timesteps
+        
+    Returns:
+        Tuple of reshaped (m1_reshaped, m2_reshaped)
     """
-    # NOTE: Update these branches to match your actual data dimensions.
+    # Get actual dimensions from input data
+    c, s = m1.shape[0], m1.shape[1]  # number of modulations, number of samples
+    
+    # Validate input shapes
+    if m1.shape[0] != m2.shape[0] or m1.shape[1] != m2.shape[1]:
+        raise ValueError(f"Shape mismatch: m1.shape={m1.shape}, m2.shape={m2.shape}")
+    
+    # Reshape based on grid_size and num_timesteps
+    # m1: (c, s, num_timesteps, 1, grid_size, grid_size) - already correct shape
+    # m2: (c, s, 1, 2, length) needs to be reshaped to match grid_size
+    
     if grid_size == 16:
         if num_timesteps == 1:
-            return m1.reshape(24, 1000, 1, 1, 16, 16), m2.reshape(24, 1000, 8, 1, 16, 16)
+            return m1.reshape(c, s, 1, 1, grid_size, grid_size), m2.reshape(c, s, 8, 1, grid_size, grid_size)
         elif num_timesteps == 2:
-            return m1.reshape(24, 1000, 2, 1, 16, 16), m2.reshape(24, 1000, 8, 1, 16, 16)
+            return m1.reshape(c, s, 2, 1, grid_size, grid_size), m2.reshape(c, s, 8, 1, grid_size, grid_size)
         elif num_timesteps == 4:
-            return m1.reshape(24, 1000, 4, 1, 16, 16), m2.reshape(24, 1000, 8, 1, 16, 16)
+            return m1.reshape(c, s, 4, 1, grid_size, grid_size), m2.reshape(c, s, 8, 1, grid_size, grid_size)
         elif num_timesteps == 8:
-            return m1.reshape(24, 1000, 8, 1, 16, 16), m2.reshape(24, 1000, 8, 1, 16, 16)
+            return m1.reshape(c, s, 8, 1, grid_size, grid_size), m2.reshape(c, s, 8, 1, grid_size, grid_size)
         elif num_timesteps == 16:
-            return m1.reshape(24, 1000, 16, 1, 16, 16), m2.reshape(24, 1000, 8, 1, 16, 16)
+            return m1.reshape(c, s, 16, 1, grid_size, grid_size), m2.reshape(c, s, 8, 1, grid_size, grid_size)
 
     elif grid_size == 32:
         if num_timesteps == 1:
-            return m1.reshape(24, 1000, 1, 1, 32, 32), m2.reshape(24, 1000, 2, 1, 32, 32)
+            return m1.reshape(c, s, 1, 1, grid_size, grid_size), m2.reshape(c, s, 2, 1, grid_size, grid_size)
         elif num_timesteps == 2:
-            return m1.reshape(24, 1000, 2, 1, 32, 32), m2.reshape(24, 1000, 2, 1, 32, 32)
+            return m1.reshape(c, s, 2, 1, grid_size, grid_size), m2.reshape(c, s, 2, 1, grid_size, grid_size)
         elif num_timesteps == 4:
-            return m1.reshape(24, 1000, 4, 1, 32, 32), m2.reshape(24, 1000, 2, 1, 32, 32)
+            return m1.reshape(c, s, 4, 1, grid_size, grid_size), m2.reshape(c, s, 2, 1, grid_size, grid_size)
         elif num_timesteps == 8:
-            return m1.reshape(24, 1000, 8, 1, 32, 32), m2.reshape(24, 1000, 2, 1, 32, 32)
+            return m1.reshape(c, s, 8, 1, grid_size, grid_size), m2.reshape(c, s, 2, 1, grid_size, grid_size)
         elif num_timesteps == 16:
-            return m1.reshape(24, 1000, 16, 1, 32, 32), m2.reshape(24, 1000, 2, 1, 32, 32)
+            return m1.reshape(c, s, 16, 1, grid_size, grid_size), m2.reshape(c, s, 2, 1, grid_size, grid_size)
 
     elif grid_size == 64:
         if num_timesteps == 1:
-            return m1.reshape(24, 1000, 4, 1, 32, 32), m2.reshape(24, 1000, 2, 1, 32, 32)
+            return m1.reshape(c, s, 4, 1, grid_size, grid_size), m2.reshape(c, s, 2, 1, grid_size, grid_size)
         elif num_timesteps == 2:
-            return m1.reshape(24, 1000, 8, 1, 32, 32), m2.reshape(24, 1000, 2, 1, 32, 32)
+            return m1.reshape(c, s, 8, 1, grid_size, grid_size), m2.reshape(c, s, 2, 1, grid_size, grid_size)
         elif num_timesteps == 4:
-            return m1.reshape(24, 1000, 16, 1, 32, 32), m2.reshape(24, 1000, 2, 1, 32, 32)
+            return m1.reshape(c, s, 16, 1, grid_size, grid_size), m2.reshape(c, s, 2, 1, grid_size, grid_size)
         elif num_timesteps == 8:
-            return m1.reshape(24, 1000, 32, 1, 32, 32), m2.reshape(24, 1000, 2, 1, 32, 32)
+            return m1.reshape(c, s, 32, 1, grid_size, grid_size), m2.reshape(c, s, 2, 1, grid_size, grid_size)
         elif num_timesteps == 16:
-            return m1.reshape(24, 1000, 64, 1, 32, 32), m2.reshape(24, 1000, 2, 1, 32, 32)
+            return m1.reshape(c, s, 64, 1, grid_size, grid_size), m2.reshape(c, s, 2, 1, grid_size, grid_size)
 
     elif grid_size == 128:
         if num_timesteps == 1:
-            return m1.reshape(24, 1000, 16, 1, 32, 32), m2.reshape(24, 1000, 2, 1, 32, 32)
+            return m1.reshape(c, s, 16, 1, grid_size, grid_size), m2.reshape(c, s, 2, 1, grid_size, grid_size)
         elif num_timesteps == 2:
-            return m1.reshape(24, 1000, 32, 1, 32, 32), m2.reshape(24, 1000, 2, 1, 32, 32)
+            return m1.reshape(c, s, 32, 1, grid_size, grid_size), m2.reshape(c, s, 2, 1, grid_size, grid_size)
         elif num_timesteps == 4:
-            return m1.reshape(24, 1000, 64, 1, 32, 32), m2.reshape(24, 1000, 2, 1, 32, 32)
+            return m1.reshape(c, s, 64, 1, grid_size, grid_size), m2.reshape(c, s, 2, 1, grid_size, grid_size)
         elif num_timesteps == 8:
-            return m1.reshape(24, 1000, 128, 1, 32, 32), m2.reshape(24, 1000, 2, 1, 32, 32)
+            return m1.reshape(c, s, 128, 1, grid_size, grid_size), m2.reshape(c, s, 2, 1, grid_size, grid_size)
         elif num_timesteps == 16:
-            return m1.reshape(24, 1000, 512, 1, 32, 32), m2.reshape(24, 1000, 2, 1, 32, 32)
+            return m1.reshape(c, s, 512, 1, grid_size, grid_size), m2.reshape(c, s, 2, 1, grid_size, grid_size)
     else:
         raise ValueError(f"Unsupported grid_size: {grid_size}")
 

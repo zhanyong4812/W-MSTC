@@ -71,10 +71,10 @@ def train_model():
             batch_data = next_batch('train', datasets, datasets_cache)
             x_spts, y_spts, x_qrys, y_qrys = [torch.tensor(d).to(device) for d in batch_data]
 
-            # Initialize cumulative loss and accuracy
-            total_loss = 0.0
-            total_acc = 0.0
-            total_inference_time = 0.0
+            # Accumulate metrics for each task to avoid multi-task graph mutual references
+            loss_list = []
+            acc_values = []
+            inference_times = []
 
             start = time.time()
 
@@ -89,28 +89,28 @@ def train_model():
                 inference_start = time.time()
 
                 # Forward pass
-                # print(f"current_x_spt shape: {current_x_spt.shape}")
                 loss, acc = model(current_x_spt, current_x_qry, current_y_spt, current_y_qry)
-                
+
                 # Record inference end time
                 inference_end = time.time()
 
                 # Calculate inference time
                 inference_time = inference_end - inference_start
 
-                total_loss += loss
-                total_acc += acc
-                total_inference_time += inference_time
+                loss_list.append(loss)
+                acc_values.append(acc.item())
+                inference_times.append(inference_time)
 
                 # You can output or log each task's inference time here
                 # print(f"Task {i+1}/{x_spts.size(0)} - Inference Time: {inference_time:.4f}s")
 
             # Calculate average loss and accuracy
-            average_loss = total_loss / x_spts.size(0)
-            average_acc = total_acc / x_spts.size(0)
+            average_loss = torch.stack(loss_list).mean()
+            average_acc = sum(acc_values) / len(acc_values)
+
             # Calculate average inference time
-            
-            average_inference_time = total_inference_time / x_spts.size(0)
+            average_inference_time = sum(inference_times) / len(inference_times)
+
             # Print average inference time
             print(f"Average Inference Time: {average_inference_time:.4f}s")
             
@@ -124,12 +124,13 @@ def train_model():
             end = time.time()
 
             if epoch % 1 == 0:
-                print(f"Epoch {epoch+1}/{NUM_EPOCHS}: Avg Loss {average_loss.item():.4f}, Avg Accuracy {average_acc.item():.4f}, Time {end - start:.2f}s")
+                # average_loss is a tensor, average_acc is a Python float
+                print(f"Epoch {epoch+1}/{NUM_EPOCHS}: Avg Loss {average_loss.item():.4f}, Avg Accuracy {average_acc:.4f}, Time {end - start:.2f}s")
 
             if epoch % 10 == 0:
                 test_loss, test_accuracy = test_model_on_multiple_tasks(model, device, datasets, datasets_cache)
                 print(f"After Epoch {epoch+1}: Test Loss: {test_loss:.4f}, Test Accuracy: {test_accuracy:.4f}")
-                csv_writer.writerow([epoch+1, test_loss, test_accuracy, inference_time])
+                csv_writer.writerow([epoch+1, test_loss, test_accuracy, average_inference_time])
 
     print("Training Completed!")
 

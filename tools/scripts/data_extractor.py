@@ -6,6 +6,10 @@ import h5py
 import numpy as np
 import logging
 
+# Set random seed for reproducibility
+RANDOM_SEED = 42
+np.random.seed(RANDOM_SEED)
+
 MODULATION_LIST = [
     'OOK', '4ASK', '8ASK', 'BPSK', 'QPSK', '8PSK', '16PSK', '32PSK',
     '16APSK', '32APSK', '64APSK', '128APSK', '16QAM', '32QAM', '64QAM',

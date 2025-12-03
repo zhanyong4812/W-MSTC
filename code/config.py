@@ -1,84 +1,167 @@
+# config.py
+"""
+Configuration module that loads settings from config.yaml and exposes them as module attributes.
+This module maintains backward compatibility with existing code that imports from config.
+"""
+
 import os
-from datetime import datetime
+import yaml
+from pathlib import Path
 
-# Base data directory
-ROOT_DIR = '/data/dataset/MLRadio/RML2018.01a/Multi_SNR_6/'
-# Default dataset file (for SNR=6)
-TRAIN_DATA_TEMPLATE = os.path.join(ROOT_DIR, 'Mutil_SNR_6_combined_all.npy')
+# Load configuration from YAML file (avoid circular import by implementing locally)
+def _load_config():
+    """Load configuration from YAML file."""
+    config_path = Path(__file__).parent / 'config.yaml'
+    if not config_path.exists():
+        raise FileNotFoundError(f"Configuration file not found: {config_path}")
+    
+    with open(config_path, 'r', encoding='utf-8') as f:
+        config = yaml.safe_load(f)
+    
+    return config
 
-# Dataset split indices
-TRAIN_SPLIT = 12
-TEST_SPLIT = [12, 16, 18]
+_config = _load_config()
 
-# Signal-to-noise ratio (to be set at runtime)
+# ============================================================================
+# Data Configuration
+# ============================================================================
+ROOT_DIR = _config['data']['root_dir']
+TRAIN_DATA_TEMPLATE = os.path.join(ROOT_DIR, _config['data']['train_data_template'])
+TRAIN_SPLIT = _config['data']['train_split']
+TEST_SPLIT = _config['data']['test_split']
+
+# Runtime data paths (will be set at runtime)
+TRAIN_DATA = None
 SNR = None
 
-# Task parameters
-N_WAY = 5           # Number of classes per episode
-K_SPT = 5           # Number of support examples per class
-K_QUERY = 5         # Number of query examples per class
-TASK_NUM = 4        # Number of parallel tasks (meta-batch size)
-BATCH_SIZE = TASK_NUM
+# ============================================================================
+# Task Parameters
+# ============================================================================
+N_WAY = _config['task']['n_way']
+K_SPT = _config['task']['k_spt']
+K_QUERY = _config['task']['k_query']
+TASK_NUM = _config['task']['task_num']
+BATCH_SIZE = _config['task']['batch_size']
 
-# Image dimensions
-RESIZE_WIDTH = 32
-RESIZE_LENGTH = 32
+# ============================================================================
+# Image Dimensions
+# ============================================================================
+RESIZE_WIDTH = _config['image']['resize_width']
+RESIZE_LENGTH = _config['image']['resize_length']
 
-# Stack sizes for input channels
-STACK_SIZE = 10      # Total channels 
-STACK_IMG_SIZE = 8   # Number of constellation image channels
+# ============================================================================
+# Channel Configuration
+# ============================================================================
+STACK_SIZE = _config['channels']['stack_size']
+STACK_IMG_SIZE = _config['channels']['stack_img_size']
 
-# Cache settings
-CACHE_BATCHES = 10   # Number of batches to keep in memory
+# ============================================================================
+# Cache Settings
+# ============================================================================
+CACHE_BATCHES = _config['cache']['cache_batches']
 
-# Model parameters
-IMG_DIM = 256        # Dimension of image feature embedding
-IQAP_DIM = 256       # Dimension of IQ amplitude-phase embedding
+# ============================================================================
+# Model Parameters
+# ============================================================================
+IMG_DIM = _config['model']['img_dim']
+IQAP_DIM = _config['model']['iqap_dim']
+NUM_HEADS = _config['model']['num_heads']
+EMBED_DIM = _config['model']['embed_dim']
+INPUT_DIM = _config['model']['input_dim']
+OUTPUT_DIM = _config['model']['output_dim']
+SEQ_LENGTH = _config['model']['seq_length']
+WINDOW_SIZES = _config['model']['window_sizes']
 
-NUM_HEADS = 4        # Number of attention heads
-EMBED_DIM = 256      # Embedding dimension for fusion
-
-INPUT_DIM = 256
-OUTPUT_DIM = 256
-SEQ_LENGTH = 256     # Sequence length for transformer input
-WINDOW_SIZES = [32, 64, 128]  # Attention window sizes per stage
-
-# Swin-Transformer configuration
+# ============================================================================
+# Swin-Transformer Configuration
+# ============================================================================
 swin_params = {
-    'num_layers': len(WINDOW_SIZES),                     # Number of transformer layers
-    'window_sizes': WINDOW_SIZES,                        # Window size per layer
-    'num_heads': [NUM_HEADS] * len(WINDOW_SIZES),        # Heads per layer
-    'mlp_ratio': 4.0,                                    # MLP expansion ratio
-    'drop': 0.2,                                         # Dropout rate
+    'num_layers': _config['swin_transformer']['num_layers'],
+    'window_sizes': WINDOW_SIZES,
+    'num_heads': [NUM_HEADS] * len(WINDOW_SIZES),
+    'mlp_ratio': _config['swin_transformer']['mlp_ratio'],
+    'drop': _config['swin_transformer']['drop'],
 }
 
-# Fusion branches toggle
+# ============================================================================
+# Fusion Branches
+# ============================================================================
 branch = {
-    "use_branch1": True,   # Windowed Attention
-    "use_branch2": True,   # Multi-scale Self-Attention
-    "use_branch3": True    # Cross-Attention with Swin-Transformer
+    "use_wa": _config['branches']['use_wa'],
+    "use_mwa": _config['branches']['use_mwa'],
+    "use_ca": _config['branches']['use_ca'],
 }
 
-# Number of transformer blocks per branch
-block_layers = 1
+# ============================================================================
+# Transformer Configuration
+# ============================================================================
+block_layers = _config['transformer']['block_layers']
 
-# Training hyperparameters
-LEARNING_RATE = 0.001
-NUM_EPOCHS = 301
+# ============================================================================
+# Training Hyperparameters
+# ============================================================================
+LEARNING_RATE = _config['training']['learning_rate']
+NUM_EPOCHS = _config['training']['num_epochs']
 
-# Results directory for CSV output
-DATA_DIR = './results/'
+# ============================================================================
+# Results Directory
+# ============================================================================
+DATA_DIR = _config['results']['data_dir']
 
-def get_dataset_path(snr):
+# ============================================================================
+# Supervised Classification (non-few-shot) Settings
+# ============================================================================
+CLS_NUM_CLASSES = _config['classification']['num_classes']
+CLS_USE_CLASSES = _config['classification']['use_classes']
+CLS_BATCH_SIZE = _config['classification']['batch_size']
+CLS_NUM_WORKERS = _config['classification']['num_workers']
+CLS_SAVE_DIR = _config['classification']['save_dir']
+
+# ============================================================================
+# Backward Compatibility Functions
+# These functions are kept for backward compatibility but delegate to utils
+# ============================================================================
+def get_dataset_path(snr=None):
     """
     Generate dataset file path for a given SNR.
+    Template can contain {snr}, {samples}, {size}, {step}.
     """
-    return TRAIN_DATA_TEMPLATE.format(snr=snr)
+    root_dir = _config['data']['root_dir']
+    template = _config['data']['train_data_template']
 
-def get_csv_filename(snr):
+    fmt_kwargs = {}
+    if '{snr}' in template and snr is not None:
+        fmt_kwargs['snr'] = snr
+    # Optional parameters: samples / size / step
+    for key in ('samples', 'size', 'step'):
+        if '{' + key + '}' in template and key in _config['data']:
+            fmt_kwargs[key] = _config['data'][key]
+
+    if fmt_kwargs:
+        template = template.format(**fmt_kwargs)
+
+    return os.path.join(root_dir, template)
+
+
+def get_csv_filename(snr, n_way=None, k_spt=None):
     """
-    Generate a timestamped CSV filename for results, including N-way and K-shot.
+    Generate a timestamped CSV filename for results.
+    Maintains backward compatibility with existing code.
     """
+    from datetime import datetime
+    
+    data_dir = _config['results']['data_dir']
+    
+    # Create SNR-specific subdirectory
+    snr_dir = os.path.join(data_dir, f"SNR_{snr}")
+    os.makedirs(snr_dir, exist_ok=True)
+    
+    # Get task parameters
+    n_way = n_way or _config['task']['n_way']
+    k_spt = k_spt or _config['task']['k_spt']
+    
+    # Generate timestamped filename
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    filename = f"{timestamp}_SNR{snr}_N{N_WAY}_K{K_SPT}_test.csv"
-    return os.path.join(DATA_DIR, filename)
+    filename = f"{timestamp}_SNR{snr}_N{n_way}_K{k_spt}_test.csv"
+    
+    return os.path.join(snr_dir, filename)

@@ -116,6 +116,8 @@ def main():
 
             # ==========================================
             # D) Stack constellation + IQ for each SNR
+            #     Output filename must match train_data_template in training-side config.yaml:
+            #     Mutil_SNR_{snr}_k{samples}_size{size}_step{step}.npy
             # ==========================================
             if stack_const_iq_flag:
                 for s in target_snrs:
@@ -131,8 +133,7 @@ def main():
                     )
                     combined_out = os.path.join(
                         output_dir,
-                        f"Mutil_SNR_{s}_k{single_sample}_"
-                        f"grid_size{grid_size}_num_timesteps{num_timesteps}.npy"
+                        f"Mutil_SNR_{s}_k{single_sample}_size{grid_size}_step{num_timesteps}.npy"
                     )
                     if os.path.exists(const_npy) and os.path.exists(iq_npy):
                         stack_constellation_and_iq(const_npy, iq_npy,

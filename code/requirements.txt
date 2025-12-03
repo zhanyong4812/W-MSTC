@@ -2,3 +2,4 @@ numpy
 torch
 torchinfo
 torchsummary
+pyyaml

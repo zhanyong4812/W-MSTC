@@ -2,9 +2,9 @@ import argparse
 import config  # Import configuration module
 from models import summary_mode
 from train import train_model
-import subprocess
 import os
 from utils import display_config
+from utils.config_utils import update_runtime_config, load_config
 
 def main():
     # Create an ArgumentParser object
@@ -13,17 +13,27 @@ def main():
     )
     
     # Add mode argument
-    parser.add_argument('--mode', type=str, choices=['main', 'sum'], default='main', 
-                        help="Choose the mode to run: 'main' for training, 'sum' for summary display.")
+    parser.add_argument(
+        '--mode', type=str, choices=['main', 'sum'], default='main',
+        help="Choose the mode to run: 'main' for training, 'sum' for summary display."
+    )
     # Add support set sample count argument
     parser.add_argument('--k_spt', type=int, default=None,
-                        help="Override the default support set sample number (K_SPT) from config.py.")
+                        help="Override the default support set sample number (K_SPT) from config.yaml.")
     # Add N_WAY argument
     parser.add_argument('--n_way', type=int, default=None,
-                        help="Override the default N_WAY value from config.py.")
+                        help="Override the default N_WAY value from config.yaml.")
     # Add SNR argument
-    parser.add_argument('--snr', type=int, default=6,
-                        help="Specify the SNR value to select the dataset (e.g., 6, -16, 8).")
+    parser.add_argument(
+        '--snr', type=int, default=6,
+        help="Specify the SNR value to select the dataset (e.g., 6, -16, 8)."
+    )
+
+    # Add task argument: few-shot (proto) or supervised classification (cls)
+    parser.add_argument(
+        '--task', type=str, choices=['proto', 'cls'], default='proto',
+        help="Choose training task: 'proto' for few-shot Prototypical Network, 'cls' for supervised classification."
+    )
     
     # Parse command-line arguments
     args = parser.parse_args()
@@ -48,11 +58,17 @@ def main():
     # Display current configuration
     display_config()
     
-    # Execute based on mode
+    # Execute based on mode / task
     if args.mode == 'sum':
         summary_mode()
     else:
-        train_model()
+        if args.task == 'cls':
+            # Lazy import to avoid unnecessary dependencies
+            from train_cls import train_cls_model
+
+            train_cls_model()
+        else:
+            train_model()
 
 if __name__ == "__main__":
     main()

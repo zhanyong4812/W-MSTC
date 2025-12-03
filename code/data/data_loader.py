@@ -6,7 +6,13 @@ from config import TRAIN_SPLIT, TEST_SPLIT, ROOT_DIR
 import config
 
 def load_data():
-    img_list = np.load(config.TRAIN_DATA)  # (11, 1000, 1, 16, 16)
+    # Expected shape: (24, N, 10, 1, 32, 32) where
+    # 24 = number of modulation types
+    # N = number of samples per modulation (e.g., 1000)
+    # 10 = total channels (8 constellation + 2 IQ)
+    # 1 = singleton dimension
+    # 32x32 = spatial dimensions
+    img_list = np.load(config.TRAIN_DATA)
     x_train = img_list[:TRAIN_SPLIT]
     x_test = np.concatenate([img_list[TEST_SPLIT[0]:TEST_SPLIT[1]], img_list[TEST_SPLIT[2]:]], axis=0)
     num_classes = img_list.shape[0]

@@ -18,9 +18,33 @@ def map_to_grid(values, grid_size=64):
 def generate_constellation_data(iq_data, output_file, grid_size=64, num_timesteps=4):
     """
     Generate example constellation diagrams from IQ data.
+    
+    Args:
+        iq_data: IQ data with shape (c, s, 1, 2, length) where
+                 c = number of modulations (24)
+                 s = number of samples
+                 1 = singleton dimension
+                 2 = I and Q channels
+                 length = sequence length (1024)
+        output_file: Path to save the output constellation data
+        grid_size: Size of the constellation grid (default: 64)
+        num_timesteps: Number of timesteps to split the sequence (default: 4)
     """
     logging.info(f"Starting constellation generation, input shape={iq_data.shape}")
-    c, s, _, _, length = iq_data.shape
+    
+    # Validate input shape
+    if len(iq_data.shape) != 5:
+        raise ValueError(f"Expected 5D input, got shape {iq_data.shape}")
+    
+    c, s, _, channels, length = iq_data.shape
+    if channels != 2:
+        raise ValueError(f"Expected 2 channels (I and Q), got {channels}")
+    
+    # Check if length is divisible by num_timesteps
+    if length % num_timesteps != 0:
+        logging.warning(f"Length ({length}) is not divisible by num_timesteps ({num_timesteps}), "
+                       f"last {length % num_timesteps} points will be ignored")
+    
     points_per_timestep = length // num_timesteps 
 
     constellation = np.zeros((c, s, num_timesteps, 1, grid_size, grid_size),

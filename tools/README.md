@@ -14,15 +14,14 @@ This repository provides a complete pipeline for:
 │   └── config.yaml          # YAML configuration file
 ├── README.md                # This file
 ├── requirements.txt         # Python dependencies
-├── scripts/
-│   ├── config_reader.py     # Read and parse config.yaml
-│   ├── constellation_utils.py  # Map IQ to constellation grid
-│   ├── data_extractor.py    # Extract IQ from HDF5
-│   ├── main.py              # Entry point for the pipeline
-│   ├── stack_utils.py       # Stack IQ and combine data
-│   └── __init__.py
-└── tests/
-    └── check_npy.ipynb      # Notebook for verifying outputs
+└── scripts/
+    ├── config_reader.py     # Read and parse config.yaml
+    ├── constellation_utils.py  # Map IQ to constellation grid
+    ├── data_extractor.py    # Extract IQ from HDF5
+    ├── main.py              # Entry point for the pipeline
+    ├── stack_utils.py       # Stack IQ and combine data
+    └── __init__.py
+
 ```
 
 ## Installation
@@ -31,7 +30,7 @@ This repository provides a complete pipeline for:
 
 ```bash
 git clone https://github.com/zhanyong4812/W-MSTC.git
-cd W-MSTC/data/
+cd W-MSTC/tools/
 ```
 
 1. **Create** a Python virtual environment (optional but recommended):
@@ -84,7 +83,7 @@ $ tree /data/dataset/MLRadio/RadioML2018
 .
 ├── Constellation_SNR_6_k1000_grid_size32_num_timesteps8.npy
 ├── IQ_SNR_6_k1000_grid_size32_num_timesteps8.npy
-├── Mutil_SNR_6_k1000_grid_size32_num_timesteps8.npy
+├── Mutil_SNR_6_k1000_size32_step8.npy
 └── SNR_6/
     ├── X_SNR_6_mod_128APSK.npy
     ├── X_SNR_6_mod_128QAM.npy
